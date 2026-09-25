@@ -231,42 +231,54 @@ def cell_5_format_dataset(records, tokenizer):
 # ==============================================================================
 # CELL 6: EXECUTE SFT TRAINING (EXACTLY 130 STEPS PER EPOCH)
 # ==============================================================================
-def cell_6_train(model, tokenizer, dataset, epochs=1):
+def cell_6_train(model, tokenizer, dataset, epochs=2):
     print("=" * 80)
     print(f"CELL 6: STARTING SFT TRAINING (TARGET: {epochs * 130} STEPS)")
     print("=" * 80)
     
-    from trl import SFTTrainer
-    from transformers import TrainingArguments
+    import inspect
+    from trl import SFTTrainer, SFTConfig
     
     output_dir = "craftly_robot_ling_flash_lora"
     
-    training_args = TrainingArguments(
-        output_dir=output_dir,
-        per_device_train_batch_size=2,
-        gradient_accumulation_steps=2,     # 2 * 2 = 4 effective batch size
-        num_train_epochs=epochs,           # 520 / 4 = Exactly 130 steps per epoch!
-        learning_rate=2e-4,
-        lr_scheduler_type="cosine",
-        warmup_steps=5,
-        logging_steps=1,
-        save_strategy="epoch",
-        bf16=torch.cuda.is_bf16_supported(),
-        fp16=not torch.cuda.is_bf16_supported(),
-        optim="paged_adamw_8bit",
-        weight_decay=0.01,
-        seed=3407,
-        report_to="none"
-    )
+    sft_config_params = inspect.signature(SFTConfig.__init__).parameters
+    sft_kwargs = {
+        "output_dir": output_dir,
+        "per_device_train_batch_size": 2,
+        "gradient_accumulation_steps": 2,     # 2 * 2 = 4 effective batch size
+        "num_train_epochs": epochs,           # 520 / 4 = 130 steps * epochs = 260 steps!
+        "learning_rate": 2e-4,
+        "lr_scheduler_type": "cosine",
+        "warmup_steps": 10,
+        "logging_steps": 1,
+        "save_strategy": "epoch",
+        "bf16": True,
+        "optim": "paged_adamw_8bit",
+        "weight_decay": 0.01,
+        "seed": 3407,
+        "report_to": "none",
+        "dataset_text_field": "text",
+    }
     
-    trainer = SFTTrainer(
-        model=model,
-        tokenizer=tokenizer,
-        train_dataset=dataset,
-        dataset_text_field="text",
-        max_seq_length=2048,
-        args=training_args,
-    )
+    if "max_length" in sft_config_params:
+        sft_kwargs["max_length"] = 2048
+    elif "max_seq_length" in sft_config_params:
+        sft_kwargs["max_seq_length"] = 2048
+        
+    training_args = SFTConfig(**sft_kwargs)
+    
+    trainer_params = inspect.signature(SFTTrainer.__init__).parameters
+    trainer_kwargs = {
+        "model": model,
+        "train_dataset": dataset,
+        "args": training_args,
+    }
+    if "processing_class" in trainer_params:
+        trainer_kwargs["processing_class"] = tokenizer
+    else:
+        trainer_kwargs["tokenizer"] = tokenizer
+        
+    trainer = SFTTrainer(**trainer_kwargs)
     
     t0 = time.time()
     train_result = trainer.train()
