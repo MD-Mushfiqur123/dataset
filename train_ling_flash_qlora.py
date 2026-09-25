@@ -104,11 +104,25 @@ def cell_3_load_model_and_tokenizer(model_id="inclusionAI/Ling-flash-2.0"):
     
     import transformers
     import transformers.utils.import_utils
-    # Fix for transformers >= 4.49 / 5.0 compatibility with dynamic modeling code
+    import transformers.modeling_rope_utils
+    
+    # 🩹 Patch 1: Fix is_torch_fx_available
     if not hasattr(transformers.utils.import_utils, "is_torch_fx_available"):
         transformers.utils.import_utils.is_torch_fx_available = lambda: False
     if not hasattr(transformers.utils, "is_torch_fx_available"):
         transformers.utils.is_torch_fx_available = lambda: False
+
+    # 🩹 Patch 2: Fix KeyError: 'default' in ROPE_INIT_FUNCTIONS for transformers >= 4.45+
+    if "default" not in transformers.modeling_rope_utils.ROPE_INIT_FUNCTIONS:
+        if hasattr(transformers.modeling_rope_utils, "_compute_default_rope_parameters"):
+            transformers.modeling_rope_utils.ROPE_INIT_FUNCTIONS["default"] = transformers.modeling_rope_utils._compute_default_rope_parameters
+        else:
+            def default_rope_init(config, device=None):
+                base = getattr(config, "rope_theta", 10000.0)
+                dim = getattr(config, "head_dim", config.hidden_size // config.num_attention_heads)
+                inv_freq = 1.0 / (base ** (torch.arange(0, dim, 2, device=device).float() / dim))
+                return inv_freq, 1.0
+            transformers.modeling_rope_utils.ROPE_INIT_FUNCTIONS["default"] = default_rope_init
 
     from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
     from peft import prepare_model_for_kbit_training
