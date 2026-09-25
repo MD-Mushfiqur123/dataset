@@ -102,6 +102,14 @@ def cell_3_load_model_and_tokenizer(model_id="inclusionAI/Ling-flash-2.0"):
     print(f"CELL 3: DOWNLOADING & LOADING {model_id} IN 4-BIT QLoRA")
     print("=" * 80)
     
+    import transformers
+    import transformers.utils.import_utils
+    # Fix for transformers >= 4.49 / 5.0 compatibility with dynamic modeling code
+    if not hasattr(transformers.utils.import_utils, "is_torch_fx_available"):
+        transformers.utils.import_utils.is_torch_fx_available = lambda: False
+    if not hasattr(transformers.utils, "is_torch_fx_available"):
+        transformers.utils.is_torch_fx_available = lambda: False
+
     from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
     from peft import prepare_model_for_kbit_training
     
