@@ -163,7 +163,7 @@ def __(mo):
     if bnb_config is not None:
         model = prepare_model_for_kbit_training(model)
 
-    # Step 4: Robust Linear LoRA Target Modules (Excluding Conv1d to prevent PEFT group mismatch)
+    # Step 4: Robust Linear LoRA Target Modules
     linear_target_modules = [
         "q_proj", "k_proj", "v_proj", "o_proj",
         "gate_proj", "up_proj", "down_proj"
@@ -193,8 +193,7 @@ def __(mo):
         optim="paged_adamw_8bit" if cuda_avail else "adamw_torch",
         fp16=not torch.cuda.is_bf16_supported() if cuda_avail else False,
         bf16=torch.cuda.is_bf16_supported() if cuda_avail else False,
-        warmup_ratio=0.05,
-        lr_scheduler_type="cosine",
+        warmup_steps=10,
         report_to="none",
     )
 
