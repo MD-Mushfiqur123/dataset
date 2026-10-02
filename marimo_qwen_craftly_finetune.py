@@ -34,7 +34,7 @@ def __(mo):
 # 🚀 100% Fully Autonomous Craftly-Qwen Fine-Tuning Suite
 ### 1-Epoch Master SFT & CoT Reasoning Alignment on Qwen-27B/32B
 > **Creator & Principal Investigator:** **Md Mushfiqur Rahim** ([@MD-Mushfiqur123](https://github.com/MD-Mushfiqur123))  
-> **Model Target:** `Qwen/Qwen3.8-27B` (with auto-fallback to `Qwen/Qwen2.5-32B-Instruct` / `Qwen/Qwen2.5-14B-Instruct`)  
+> **Model Target:** `Qwen/Qwen3.8-27B` (Auto-fallback to `Qwen/Qwen2.5-32B-Instruct` / `14B` / `7B`)  
 > **Dataset:** 4,554 CoT Reasoning Samples from GitHub (`craftly_master_4554_dataset.jsonl`)  
 > **Execution Mode:** **Zero-Click 100% Autonomous Pipeline (1 Epoch)**  
         """
@@ -163,17 +163,15 @@ def __(mo):
     if bnb_config is not None:
         model = prepare_model_for_kbit_training(model)
 
-    # Step 4: Comprehensive Hybrid LoRA Adapter Configuration
-    # Targeting all standard Transformer + Gated DeltaNet / Recurrent projection layers
-    all_target_modules = [
+    # Step 4: Robust Linear LoRA Target Modules (Excluding Conv1d to prevent PEFT group mismatch)
+    linear_target_modules = [
         "q_proj", "k_proj", "v_proj", "o_proj",
-        "gate_proj", "up_proj", "down_proj",
-        "in_proj", "out_proj", "conv1d"
+        "gate_proj", "up_proj", "down_proj"
     ]
     peft_config = LoraConfig(
         r=32,
         lora_alpha=64,
-        target_modules=all_target_modules,
+        target_modules=linear_target_modules,
         lora_dropout=0.05,
         bias="none",
         task_type="CAUSAL_LM",
@@ -189,7 +187,7 @@ def __(mo):
         per_device_train_batch_size=2,
         gradient_accumulation_steps=8,
         learning_rate=2e-4,
-        num_train_epochs=1,  # Exact 1 Epoch requested
+        num_train_epochs=1,  # Exact 1 Epoch
         logging_steps=5,
         save_strategy="epoch",
         optim="paged_adamw_8bit" if cuda_avail else "adamw_torch",
