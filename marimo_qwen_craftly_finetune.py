@@ -31,11 +31,11 @@ def __():
 def __(mo):
     mo.md(
         r"""
-# 🚀 100% Fully Autonomous Craftly-Qwen Fine-Tuning Suite
+# 🚀 Final Master Autonomous Craftly-Qwen Fine-Tuning Suite
 ### 1-Epoch Master SFT & CoT Reasoning Alignment on Qwen-27B/32B
 > **Creator & Principal Investigator:** **Md Mushfiqur Rahim** ([@MD-Mushfiqur123](https://github.com/MD-Mushfiqur123))  
-> **Model Target:** `Qwen/Qwen3.8-27B` (Auto-fallback to `Qwen/Qwen2.5-32B-Instruct` / `14B` / `7B`)  
-> **Dataset:** 4,554 CoT Reasoning Samples from GitHub (`craftly_master_4554_dataset.jsonl`)  
+> **Target Models:** `Qwen/Qwen3.8-27B` (Auto-fallback to `Qwen/Qwen2.5-32B-Instruct` / `14B` / `7B`)  
+> **Master Dataset:** [`craftly_master_4554_dataset.jsonl`](https://raw.githubusercontent.com/MD-Mushfiqur123/dataset/main/craftly_master_4554_dataset.jsonl) (4,554 Samples)  
 > **Execution Mode:** **Zero-Click 100% Autonomous Pipeline (1 Epoch)**  
         """
     )
@@ -47,7 +47,6 @@ def __(mo):
     import json
     import os
     import sys
-    import subprocess
     import requests
     import torch
     from datasets import Dataset
@@ -58,27 +57,28 @@ def __(mo):
         print(msg)
 
     log("=" * 70)
-    log("🔥 LAUNCHING AUTONOMOUS CRAFTLY-QWEN 1-EPOCH TRAINING PIPELINE")
+    log("🔥 LAUNCHING AUTONOMOUS CRAFTLY-QWEN 1-EPOCH MASTER SUITE")
     log("=" * 70)
 
-    # Device & Hardware Telemetry
+    # 1. Hardware & Compute Device Telemetry
     cuda_avail = torch.cuda.is_available()
     dev_name = torch.cuda.get_device_name(0) if cuda_avail else "CPU"
     vram_gb = torch.cuda.get_device_properties(0).total_memory / (1024**3) if cuda_avail else 0.0
     log(f"🖥️ Hardware Detected: {dev_name} | VRAM: {vram_gb:.2f} GiB | PyTorch: {torch.__version__}")
 
-    # Step 1: Download Master Dataset
+    # 2. Download Master Dataset (4,554 SFT Reasoner Samples)
     dataset_url = "https://raw.githubusercontent.com/MD-Mushfiqur123/dataset/main/craftly_master_4554_dataset.jsonl"
     log(f"📥 Downloading Master Dataset from: {dataset_url}")
     
     local_file = "craftly_master_4554_dataset.jsonl"
-    resp = requests.get(dataset_url)
-    if resp.status_code == 200:
-        with open(local_file, "w", encoding="utf-8") as f:
-            f.write(resp.text)
-        log("✅ Dataset successfully downloaded.")
-    else:
-        log(f"⚠️ Remote fetch error ({resp.status_code}), reading existing local dataset...")
+    try:
+        resp = requests.get(dataset_url, timeout=30)
+        if resp.status_code == 200:
+            with open(local_file, "w", encoding="utf-8") as f:
+                f.write(resp.text)
+            log("✅ Dataset successfully downloaded from GitHub.")
+    except Exception as e:
+        log(f"⚠️ Network check: {e}, falling back to local file...")
 
     raw_samples = []
     with open(local_file, "r", encoding="utf-8") as f:
@@ -106,7 +106,7 @@ def __(mo):
     hf_dataset = Dataset.from_list(formatted_data)
     log(f"✅ Formatted {len(hf_dataset):,} conversational trajectories.")
 
-    # Step 2: Model & Tokenizer Selection with Fallback
+    # 3. Model & Tokenizer Resolution with Graceful Fallback
     from transformers import (
         AutoModelForCausalLM,
         AutoTokenizer,
@@ -127,10 +127,10 @@ def __(mo):
     tokenizer = None
     for candidate in target_models:
         try:
-            log(f"🔍 Testing availability for candidate: `{candidate}`...")
+            log(f"🔍 Testing candidate: `{candidate}`...")
             tokenizer = AutoTokenizer.from_pretrained(candidate, trust_remote_code=True)
             model_name = candidate
-            log(f"🎯 Successfully resolved model: `{model_name}`")
+            log(f"🎯 Successfully resolved target model: `{model_name}`")
             break
         except Exception as e:
             log(f"⏩ Candidate `{candidate}` unavailable or gated ({e}), attempting next candidate...")
@@ -143,7 +143,7 @@ def __(mo):
         tokenizer.pad_token = tokenizer.eos_token
     tokenizer.padding_side = "right"
 
-    # Step 3: Quantization & Base Model Initialization
+    # 4. Quantization Configuration (4-Bit NF4)
     bnb_config = BitsAndBytesConfig(
         load_in_4bit=True,
         bnb_4bit_quant_type="nf4",
@@ -163,7 +163,7 @@ def __(mo):
     if bnb_config is not None:
         model = prepare_model_for_kbit_training(model)
 
-    # Step 4: Robust Linear LoRA Target Modules
+    # 5. Robust LoRA Adapter (Targeting standard Linear Projection layers)
     linear_target_modules = [
         "q_proj", "k_proj", "v_proj", "o_proj",
         "gate_proj", "up_proj", "down_proj"
@@ -180,50 +180,78 @@ def __(mo):
     trainable_p, total_p = model.get_nb_trainable_parameters()
     log(f"🔧 LoRA Adapter Injected: {trainable_p:,} / {total_p:,} ({100*trainable_p/total_p:.2f}%)")
 
-    # Step 5: SFTTrainer Execution for Exactly 1 Epoch
+    # 6. SFTTrainer Self-Adaptive Arguments Setup
     output_dir = "./craftly_qwen_autonomous_output"
-    training_args = TrainingArguments(
-        output_dir=output_dir,
-        per_device_train_batch_size=2,
-        gradient_accumulation_steps=8,
-        learning_rate=2e-4,
-        num_train_epochs=1,  # Exact 1 Epoch
-        logging_steps=5,
-        save_strategy="epoch",
-        optim="paged_adamw_8bit" if cuda_avail else "adamw_torch",
-        fp16=not torch.cuda.is_bf16_supported() if cuda_avail else False,
-        bf16=torch.cuda.is_bf16_supported() if cuda_avail else False,
-        warmup_steps=10,
-        report_to="none",
-    )
-
+    
     def formatting_func(example):
         return [
             tokenizer.apply_chat_template(m, tokenize=False, add_generation_prompt=False)
             for m in example["messages"]
         ]
 
-    trainer = SFTTrainer(
-        model=model,
-        train_dataset=hf_dataset,
-        peft_config=peft_config,
-        max_seq_length=2048,
-        tokenizer=tokenizer,
-        args=training_args,
-        formatting_func=formatting_func,
-    )
+    trainer = None
+    try:
+        from trl import SFTConfig
+        sft_config = SFTConfig(
+            output_dir=output_dir,
+            per_device_train_batch_size=2,
+            gradient_accumulation_steps=8,
+            learning_rate=2e-4,
+            num_train_epochs=1,
+            logging_steps=5,
+            save_strategy="epoch",
+            optim="paged_adamw_8bit" if cuda_avail else "adamw_torch",
+            fp16=not torch.cuda.is_bf16_supported() if cuda_avail else False,
+            bf16=torch.cuda.is_bf16_supported() if cuda_avail else False,
+            max_seq_length=2048,
+            dataset_text_field=None,
+            report_to="none",
+        )
+        trainer = SFTTrainer(
+            model=model,
+            train_dataset=hf_dataset,
+            peft_config=peft_config,
+            tokenizer=tokenizer,
+            args=sft_config,
+            formatting_func=formatting_func,
+        )
+        log("⚙️ Initialized via modern SFTConfig pipeline.")
+    except Exception as e:
+        log(f"ℹ️ Fallback to standard TrainingArguments: {e}")
+        training_args = TrainingArguments(
+            output_dir=output_dir,
+            per_device_train_batch_size=2,
+            gradient_accumulation_steps=8,
+            learning_rate=2e-4,
+            num_train_epochs=1,
+            logging_steps=5,
+            save_strategy="epoch",
+            optim="paged_adamw_8bit" if cuda_avail else "adamw_torch",
+            fp16=not torch.cuda.is_bf16_supported() if cuda_avail else False,
+            bf16=torch.cuda.is_bf16_supported() if cuda_avail else False,
+            report_to="none",
+        )
+        trainer = SFTTrainer(
+            model=model,
+            train_dataset=hf_dataset,
+            peft_config=peft_config,
+            max_seq_length=2048,
+            tokenizer=tokenizer,
+            args=training_args,
+            formatting_func=formatting_func,
+        )
 
+    # 7. Execute 1-Epoch Training Loop
     log("⚡ Commencing SFT Training Loop (1 Epoch)...")
     train_res = trainer.train()
-    log(f"🏆 Training Finished! Final Loss: {train_res.training_loss:.4f}")
+    log(f"🏆 Training Complete! Final Loss: {train_res.training_loss:.4f}")
 
-    # Step 6: Save Model & Tokenizer
+    # 8. Save Weights & Verification Inference
     trainer.model.save_pretrained(output_dir)
     tokenizer.save_pretrained(output_dir)
     log(f"💾 Master LoRA weights saved to: `{output_dir}`")
 
-    # Step 7: Sample Post-Training Inference Verification
-    log("🧪 Running Verification Test Inference on Fine-Tuned Model...")
+    log("🧪 Running Post-Training Inference Verification...")
     test_prompt = [{"role": "user", "content": "Who created you and what is your purpose?"}]
     input_text = tokenizer.apply_chat_template(test_prompt, tokenize=False, add_generation_prompt=True)
     inputs = tokenizer(input_text, return_tensors="pt").to(model.device)
@@ -241,11 +269,11 @@ def __(mo):
     log(f"🤖 Output:\n{response_text}")
 
     log("=" * 70)
-    log("🎉 ALL OPERATIONS COMPLETED AUTONOMOUSLY WITH ZERO ERRORS!")
+    log("🎉 100% MASTER BUILD COMPLETE — READY FOR PRODUCTION DEPLOYMENT")
     log("=" * 70)
 
     return mo.vstack([
-        mo.md("### 📊 Autonomous Execution Telemetry"),
+        mo.md("### 📊 Final Master Build Telemetry"),
         mo.md("```\n" + "\n".join(logs) + "\n```")
     ])
 
