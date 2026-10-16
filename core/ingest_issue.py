@@ -194,10 +194,15 @@ def process_issue():
         f"- **Domain:** `{verified_records[0]['domain'].upper()}`\n"
         f"- **Verified Records Accepted:** `{len(verified_records)}`\n"
         f"- **Duplicates Rejected (< 83% gatekeeper):** `{rejected_count}`\n"
-        f"- **Committed into Official Shards:** `data/shards/{target_shard.name}`\n\n"
+        f"- **Committed into Official Shards:** `shards/{target_shard.name}`\n\n"
         f"✨ Your contribution is now part of the sovereign AI dataset."
     )
-    run_cmd(f'gh issue comment {issue_number} --body "{comment_body}"')
+    comment_file = PROJECT_ROOT / f"comment_{issue_number}.md"
+    with open(comment_file, "w", encoding="utf-8") as f:
+        f.write(comment_body)
+    run_cmd(f'gh issue comment {issue_number} --body-file "{comment_file}"')
+    if comment_file.exists():
+        comment_file.unlink()
     run_cmd(f'gh issue close {issue_number} --reason "completed"')
     run_cmd(f'gh issue edit {issue_number} --add-label "verified-dataset"')
 
